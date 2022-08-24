@@ -3,7 +3,64 @@
 //  Assunto: Rasterizacao e Transformacoes Geometricas
 // 
 //  Autor: Prof. Laurindo de Sousa Britto Neto
+//  Aluno: Matheus Luís Webber
 // *********************************************************************
+
+/*
+Comandos:
+Cada tecla entra em um modo diferente, pra sair do modo atual basta apertar a
+tecla de outro modo ou a tecla do modo atual
+
+l - limpa a tela e ajusta para o programa limpar a tela a cada vez que ocorre
+uma mudanca de modo
+
+r - volta ao desenho das retas, saindo de todos os modos
+
+q - desenha quadrados com 2 cliques
+
+t - desenha triangulos com 3 cliques
+
+p - desenha poligonos com 4 ou mais cliques
+
+c - desenha uma circunferencia com 2 cliques
+
+f - ativa o modo do flood fill que usa o algoritmo de flood fill para pintar,
+começa a partir do ponto clicado
+Atenção!!! Se o ponto clicado não estiver dentro de nenhuma forma geométrica
+pode travar o programa
+
+g - Translacao
+h - Escala
+j - Rotacao
+k - Cisalhamento
+l - Reflexao
+
+Comandos das transformacoes geometricas:
+
+Translação(g):
+Desloca todas as formas rasterizadas de acordo com o comando utilizado
+	[ - Desloca 5 pixels para cima
+	] - Desloca 5 pixels para baixo
+	, - Desloca 5 pixels a esquerda
+	. - Desloca 5 pixels a direita
+
+Escala(h):
+	[ - Escala 2x
+	] - Escala 1.5x
+	, - Escala 0.75x
+	. - Escala 0.5x
+
+Rotação(j):
+	, - Rotaciona 5 graus a esquerda
+	. - Rotaciona 5 graus a direita
+
+Cisalhamento(k):
+
+Reflexao(l):
+	[ - Reflexao com relacao ao eixo x
+	, - Reflexao com relacao ao eixo y
+	. - Reflexao com relacao a origem
+*/
 
 // Bibliotecas utilizadas pelo OpenGL
 #include <GL/gl.h>
@@ -14,11 +71,13 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <math.h>
 
 // Variaveis Globais
 bool click1 = false, click2 = false, quadrado = false, circunferencia = false,
  triangulo = false, poligono = false, desenha = false, refreshScreen = false,
- raster_poligono = false, floodFill = false;
+ raster_poligono = false, floodFill = false, translate = false, scale = false,
+ rotate = false, shear = false, reflection = false;
 
 double x_1, y_1, x_2, y_2;
 
@@ -63,9 +122,8 @@ ponto * pontosTriangulo = NULL;
 //Lista encadeada usada para construir os triangulos
 ponto * pontosPoligono = NULL;
 
-//Lista encadeada usada para armazenar os vértices das formas geométricas para
-//a rasterização de polígonos
-vertex * pontosExtremos = NULL;// Funcao para armazenar um ponto na lista
+//Lista encadeada usada para armazenar os vértices das formas geométricas
+vertex * pontosExtremos = NULL;
 
 
 // Armazena como uma Pilha (empilha)
@@ -159,6 +217,14 @@ void freeVertexes(vertex * pilha){
 	}
 }
 
+void freeVertexes(){
+	while (pontosExtremos != NULL){
+		vertex * prox = pontosExtremos->prox;
+		delete pontosExtremos;
+		pontosExtremos = prox;
+	}
+}
+
 // Informa o tamanho da pilha
 int size(vertex * pnt){
 	int size = 0;
@@ -220,7 +286,7 @@ void display(void);
 void keyboard(unsigned char key, int x, int y);
 void mouse(int button, int state, int x, int y);
 
-// Fun??es criadas
+// Funcoes criadas
 void retaBresenham(double x1, double x2, double y1, double y2);
 void bresenhamCircumference(double x1, double x2, double Raio);
 void polygonRasterAlgorithm();
@@ -228,6 +294,9 @@ void floodFillAlgorithm(double x, double y);
 void drawSquare();
 void drawTriangle();
 void drawPolygon();
+void translationPoints(int displace_x, int displace_y);
+void rotatePoints(double angle);
+void reflectionPoints(bool eixo_x, bool eixo_y);
 void printMenu();
 
 // Funcao que percorre a lista de pontos desenhando-os na tela
@@ -281,17 +350,19 @@ void keyboard(unsigned char key, int x, int y){
 	case 113: // codigo ASCII da tecla q
 		if (quadrado){
 			if (refreshScreen){
-				freePoints();	
+				freePoints();
 			}
 			quadrado = false;
 		}
 		else{
 			if (refreshScreen){
-				freePoints();	
+				freePoints();
+				freeVertexes();		
 			}
 			pontosTriangulo = NULL, pontosPoligono = NULL;
 			desenha = false, poligono = false, triangulo = false,
-			circunferencia = false, floodFill = false;
+			circunferencia = false, floodFill = false, translate = false,
+			scale = false, rotate = false, shear = false, reflection = false;
 			quadrado = true;
 		}
 		break;
@@ -304,15 +375,17 @@ void keyboard(unsigned char key, int x, int y){
 		}
 		else{
 			if (refreshScreen){
-				freePoints();	
+				freePoints();
+				freeVertexes();
 			}
 			pontosTriangulo = NULL, pontosPoligono = NULL;
 			quadrado = false, desenha = false, poligono = false,
-			circunferencia = false, floodFill = false;
+			circunferencia = false, floodFill = false, translate = false,
+			scale = false, rotate = false, shear = false, reflection = false;
 			triangulo = true;
 		}
 		break;
-	case 112:
+	case 112: // codigo letra p
 		if (poligono){
 			if (refreshScreen){
 				freePoints();	
@@ -321,49 +394,61 @@ void keyboard(unsigned char key, int x, int y){
 		}
 		else{
 			if (refreshScreen){
-				freePoints();	
+				freePoints();
+				freeVertexes();	
 			}
 			pontosTriangulo = NULL, pontosPoligono = NULL;
 			quadrado = false, triangulo = false, desenha = false,
-			circunferencia = false, floodFill = false;
+			circunferencia = false, floodFill = false, translate = false,
+			scale = false, rotate = false, shear = false, reflection = false;
 			poligono = true;
 		}
 		break;
-	case 99:
+	case 99: // codigo letra c
 		if (circunferencia){
 			if (refreshScreen){
 				freePoints();	
 			}
 			circunferencia = false;
 		}else{
+			if (refreshScreen){
+				freePoints();
+				freeVertexes();	
+			}
 			pontosTriangulo = NULL, pontosPoligono = NULL;
 			quadrado = false, triangulo = false, desenha = false,
-			poligono = false, floodFill = false;
+			poligono = false, floodFill = false, translate = false,
+			scale = false, rotate = false, shear = false, reflection = false;
 			circunferencia = true;
 		}
 		break;
-	case 102:
+	case 102: // codigo letra f
 		if (floodFill){
 			if (refreshScreen){
 				freePoints();	
 			}
 			floodFill = false;
 		}else{
+			freeVertexes();	
 			pontosTriangulo = NULL, pontosPoligono = NULL;
 			quadrado = false, triangulo = false, desenha = false,
-			poligono = false, circunferencia = false, floodFill = false;
+			poligono = false, circunferencia = false, floodFill = false,
+			translate = false, scale = false, rotate = false, shear = false,
+			reflection = false;
 			floodFill = true;
 		}
 		break;
-	case 114:
+	case 114: // codigo letra r
 		if (refreshScreen){
-			freePoints();	
+			freePoints();
+			freeVertexes();	
 		}
 		quadrado = false, triangulo = false, poligono = false,
-		circunferencia = false, desenha = false, floodFill = false;
+		circunferencia = false, desenha = false, floodFill = false,
+		translate = false, scale = false, rotate = false, shear = false,
+		reflection = false;
 		break;
-	
-	case 108:
+	case 122: // codigo letra z
 		if (refreshScreen){
 			refreshScreen = false;
 		}
@@ -372,6 +457,107 @@ void keyboard(unsigned char key, int x, int y){
 			refreshScreen = true;
 			display();
 		}
+		break;
+	case 103: // codigo letra g
+		if (translate){
+			translate = false;
+		}
+		else{
+			quadrado = false, triangulo = false, poligono = false,
+			circunferencia = false, desenha = false, floodFill = false,
+			scale = false, rotate = false, shear = false, reflection = false;
+			translate = true;
+			display();
+		}
+		break;
+	case 104: // codigo letra h
+		if (scale){
+			scale = false;
+		}
+		else{
+			quadrado = false, triangulo = false, poligono = false,
+			circunferencia = false, desenha = false, floodFill = false,
+			translate = false, rotate = false, shear = false, reflection = false;
+			scale = true;
+			display();
+		}
+		break;
+	case 106: // codigo letra j
+		if (rotate){
+			rotate = false;
+		}
+		else{
+			quadrado = false, triangulo = false, poligono = false,
+			circunferencia = false, desenha = false, floodFill = false,
+			translate = false, scale = false, shear = false, reflection = false;
+			rotate = true;
+			display();
+		}
+		break;
+	case 107: // codigo letra k
+		if (shear){
+			shear = false;
+		}
+		else{
+			quadrado = false, triangulo = false, poligono = false,
+			circunferencia = false, desenha = false, floodFill = false,
+			translate = false, scale = false, rotate = false, reflection = false;
+			shear = true;
+			display();
+		}
+		break;
+	case 108: // codigo letra l
+		if (reflection){
+			reflection = false;
+		}
+		else{
+			quadrado = false, triangulo = false, poligono = false,
+			circunferencia = false, desenha = false, floodFill = false,
+			translate = false, scale = false, rotate = false, shear = false;
+			reflection = true;
+			display();
+		}
+		break;
+	
+	// controle da rotacao/escala/translacao
+	case 46: // codigo .
+		if(translate){
+			translationPoints(5, 0);
+		}
+		if (rotate){
+			rotatePoints(-0.5);
+		}
+		if(reflection){
+			reflectionPoints(true, true);
+		}
+		display();
+		break;
+	case 44: // codigo ,
+		if(translate){
+			translationPoints(-5, 0);
+		}
+		if (rotate){
+			rotatePoints(0.5);
+		}
+		if(reflection){
+			reflectionPoints(false, true);
+		}
+		display();
+		break;
+	case 91: // codigo [
+		if(translate){
+			translationPoints(0, 5);
+		}
+		if(reflection){
+			reflectionPoints(true, false);
+		}
+		display();
+		break;
+	case 93: // codigo ]
+		if(translate){
+			translationPoints(0, -5);
+		}
+		display();
 		break;
 	}
 }
@@ -425,20 +611,19 @@ void display(void){
 
 	glColor3f (0.0, 0.0, 0.0); // Seleciona a cor default como preto
 
-
-	if (quadrado){
+	if(scale){
+		
+	}else if(shear){
+		
+	}else if (quadrado){
 		drawSquare();
-	}
-	else if(triangulo){
+	}else if(triangulo){
 		drawTriangle();
-	}
-	else if(poligono){
+	}else if(poligono){
 		drawPolygon();
-	}
-	else if(raster_poligono){
+	}else if(raster_poligono){
 		polygonRasterAlgorithm();
-	}
-	else if(floodFill && (click1 || click2)){
+	}else if(floodFill && (click1 || click2)){
 		if (!click2){
 			floodFillAlgorithm(x_1, y_1);
 		}else{
@@ -446,14 +631,14 @@ void display(void){
 		}
 		click1 = false;
 		click2 = false;
-	}
-	else if(circunferencia && click1 && click2){
+	}else if(circunferencia && click1 && click2){
 		double Raio = round(sqrt(pow(x_2 - x_1, 2) + pow(y_2 - y_1, 2)));
 		bresenhamCircumference(x_1, y_1, Raio);
 		click1 = false;
 		click2 = false;
-	}
-	else if (click1 && click2){
+	}else if (click1 && click2){
+		// pushVertex(pontosExtremos, x_1, y_1, 'f');
+		// pushVertex(pontosExtremos, x_2, y_2, 'i');
 		retaBresenham(x_1, y_1, x_2, y_2);
 		click1 = false;
 		click2 = false;
@@ -738,6 +923,92 @@ void polygonRasterAlgorithm(){
 	// 	}
 	// 	pnt = pnt->prox;
 	// }
+}
+
+void translationPoints(int displace_x, int displace_y){
+	ponto * pnt = pontos;
+	while(pnt != NULL){
+		pnt->x += displace_x;
+		pnt->y += displace_y;
+		pnt = pnt->prox;
+	}
+}
+
+void rotatePoints(double angle){
+	freePoints();
+	vertex * pnt = pontosExtremos;
+	vertex * vertInicio; 
+	while(pnt != NULL){
+		if (pnt->type == 'i'){
+			vertInicio = pnt;
+		}
+		if (pnt->type == 'm'){
+			pnt->x -= vertInicio->x;
+			pnt->y -= vertInicio->y;
+		}
+		if (pnt->type == 'f'){
+			pnt->x -= vertInicio->x;
+			pnt->y -= vertInicio->y;
+		}
+		pnt = pnt->prox;
+	}
+	
+	pnt = pontosExtremos;
+	while(pnt != NULL){
+		if (pnt->type == 'i'){
+			vertInicio = pnt;
+		}
+		if (pnt->type != 'i'){
+			double x = pnt->x;
+			double y = pnt->y;
+			pnt->x = (x*cos(angle))-(y*sin(angle));
+			pnt->y = (x*sin(angle))+(y*cos(angle));
+			pnt->x += vertInicio->x;
+			pnt->y += vertInicio->y;
+		}
+		pnt = pnt->prox;
+	}
+	
+	pnt = pontosExtremos;
+	while(pnt != NULL){
+		if (pnt->type == 'i'){
+			vertInicio = pnt;
+			retaBresenham(pnt->x, pnt->y, pnt->prox->x, pnt->prox->y);
+		}
+		if (pnt->type == 'm'){
+			retaBresenham(pnt->x, pnt->y, pnt->prox->x, pnt->prox->y);
+		}
+		if (pnt->type == 'f'){
+			retaBresenham(pnt->x, pnt->y, vertInicio->x, vertInicio->y);
+		}
+		pnt = pnt->prox;
+	}
+}
+
+void reflectionPoints(bool eixo_x, bool eixo_y){
+	ponto * pnt = pontos;
+	if (eixo_x && eixo_y){
+		while(pnt != NULL){
+			pnt->x *= -1;
+			pnt->y *= -1;
+			pnt = pnt->prox;
+		}
+		return;	
+	}
+	if (eixo_x){
+		while(pnt != NULL){
+			pnt->x *= -1;
+			pnt = pnt->prox;
+		}
+		return;		
+	}
+	if (eixo_y){
+		while(pnt != NULL){
+			pnt->y *= -1;
+			pnt = pnt->prox;
+		}
+		return;	
+	}
 }
 
 void printMenu(){
